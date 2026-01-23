@@ -11,25 +11,30 @@ enum AppTab: Hashable {
 struct ContentView: View {
     @State private var selectedTab: AppTab = .home
     @State private var showingSheet = false
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var tabBarVisibility: Visibility {
+        horizontalSizeClass == .compact ? .hidden : .visible
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            Tab(value: AppTab.home) {
+            Tab("Home", systemImage: "house.fill", value: AppTab.home) {
                 TabContentView(title: "Home", systemImage: "house.fill")
                     .fabBarSafeAreaPadding()
-                    .toolbarVisibility(.hidden, for: .tabBar)
+                    .toolbarVisibility(tabBarVisibility, for: .tabBar)
             }
 
-            Tab(value: AppTab.explore) {
+            Tab("Explore", systemImage: "map.fill", value: AppTab.explore) {
                 TabContentView(title: "Explore", systemImage: "map.fill")
                     .fabBarSafeAreaPadding()
-                    .toolbarVisibility(.hidden, for: .tabBar)
+                    .toolbarVisibility(tabBarVisibility, for: .tabBar)
             }
 
-            Tab(value: AppTab.profile) {
+            Tab("Profile", systemImage: "person.fill", value: AppTab.profile) {
                 TabContentView(title: "Profile", systemImage: "person.fill")
                     .fabBarSafeAreaPadding()
-                    .toolbarVisibility(.hidden, for: .tabBar)
+                    .toolbarVisibility(tabBarVisibility, for: .tabBar)
             }
         }
         .fabBar(
