@@ -1,4 +1,4 @@
-import SwiftUI
+import Foundation
 
 /// Configuration for the floating action button (FAB) in FabBar.
 ///
@@ -8,9 +8,6 @@ import SwiftUI
 public struct FabAction {
     /// The SF Symbol name for the button icon.
     public let systemImage: String
-
-    /// The tint color for the button's glass effect.
-    public let tint: Color
 
     /// The accessibility label for VoiceOver users.
     public let accessibilityLabel: String
@@ -22,17 +19,14 @@ public struct FabAction {
     ///
     /// - Parameters:
     ///   - systemImage: The SF Symbol name for the button icon.
-    ///   - tint: The tint color for the button's glass effect.
     ///   - accessibilityLabel: The accessibility label for VoiceOver users.
     ///   - action: The action to perform when the button is tapped.
     public init(
         systemImage: String,
-        tint: Color,
         accessibilityLabel: String,
         action: @escaping () -> Void
     ) {
         self.systemImage = systemImage
-        self.tint = tint
         self.accessibilityLabel = accessibilityLabel
         self.action = action
     }

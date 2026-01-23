@@ -11,15 +11,14 @@ final class GlassTabBarContainer<Tab: Hashable>: UIView {
     let fabGlassView: UIVisualEffectView
     let fabButton: UIButton
 
-    private let spacing: CGFloat = 8
-    private let contentPadding: CGFloat = 2
+    private let spacing: CGFloat = Constants.fabSpacing
+    private let contentPadding: CGFloat = Constants.contentPadding
 
     init(
         segmentedControl: HiddenLabelSegmentedControl,
         tabItems: [FabBarItem<Tab>],
         selectedIndex: Int,
-        action: FabAction,
-        tintColor: UIColor
+        action: FabAction
     ) {
         self.segmentedControl = segmentedControl
         labelsOverlay = TabItemLabelsOverlay(tabItems: tabItems, selectedIndex: selectedIndex)
@@ -37,18 +36,24 @@ final class GlassTabBarContainer<Tab: Hashable>: UIView {
         // Create FAB button
         let fabGlassEffect = UIGlassEffect()
         fabGlassEffect.isInteractive = true
-        fabGlassEffect.tintColor = tintColor
+        fabGlassEffect.tintColor = .tintColor
         fabGlassView = UIVisualEffectView(effect: fabGlassEffect)
 
         let button = UIButton(type: .system)
-        let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
+        let config = UIImage.SymbolConfiguration(pointSize: Constants.fabIconPointSize, weight: .medium)
         let buttonImage = UIImage(systemName: action.systemImage, withConfiguration: config)
         button.setImage(buttonImage, for: .normal)
         button.tintColor = .white
         button.accessibilityLabel = action.accessibilityLabel
+        button.accessibilityTraits = .button
         fabButton = button
 
         super.init(frame: .zero)
+
+        // Ensure tint adjustment mode is automatic so views dim when sheets are presented
+        tintAdjustmentMode = .automatic
+        fabGlassView.tintAdjustmentMode = .automatic
+        fabButton.tintAdjustmentMode = .automatic
 
         setupViews(action: action)
         setupHighlightCallbacks()
@@ -140,5 +145,15 @@ final class GlassTabBarContainer<Tab: Hashable>: UIView {
 
         // Circle shape for FAB button (capsule with equal width/height = circle)
         fabGlassView.cornerConfiguration = .capsule()
+    }
+
+    override func tintColorDidChange() {
+        super.tintColorDidChange()
+        // Update FAB glass effect tint when tintAdjustmentMode changes
+        // Create a new effect since modifying existing effect's tintColor doesn't update visuals
+        let newEffect = UIGlassEffect()
+        newEffect.isInteractive = true
+        newEffect.tintColor = tintColor
+        fabGlassView.effect = newEffect
     }
 }

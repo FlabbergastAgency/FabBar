@@ -74,7 +74,6 @@ struct ContentView: View {
                 ],
                 action: FabAction(
                     systemImage: "plus",
-                    tint: .blue,
                     accessibilityLabel: "Add Item"
                 ) {
                     // Handle FAB tap

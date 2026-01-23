@@ -5,10 +5,7 @@ import UIKit
 final class TabItemLabelView<Tab: Hashable>: UIView {
     private let imageView: UIImageView
     private let titleLabel: UILabel
-
-    var activeTintColor: UIColor = .tintColor {
-        didSet { updateColors() }
-    }
+    private var baseImage: UIImage?
 
     var inactiveTintColor: UIColor = .label {
         didSet { updateColors() }
@@ -32,29 +29,34 @@ final class TabItemLabelView<Tab: Hashable>: UIView {
 
     private func setupViews(tabItem: FabBarItem<Tab>) {
         // Configure image view
-        // Use .large scale to match SwiftUI's .imageScale(.large)
-        let config = UIImage.SymbolConfiguration(pointSize: 18, weight: .medium, scale: .large)
+        let config = UIImage.SymbolConfiguration(
+            pointSize: Constants.tabIconPointSize,
+            weight: .medium,
+            scale: .large
+        )
 
         if let imageName = tabItem.image {
-            // Custom image from bundle
             let bundle = tabItem.imageBundle ?? .main
-            imageView.image = UIImage(named: imageName, in: bundle, with: config)
+            baseImage = UIImage(named: imageName, in: bundle, with: config)
+            if baseImage == nil {
+                fabBarLogger.warning("Failed to load image '\(imageName)' from bundle for tab '\(tabItem.title)'")
+            }
         } else if let systemImageName = tabItem.systemImage {
-            // SF Symbol
-            imageView.image = UIImage(systemName: systemImageName, withConfiguration: config)
+            baseImage = UIImage(systemName: systemImageName, withConfiguration: config)
+            if baseImage == nil {
+                fabBarLogger.warning("Failed to load SF Symbol '\(systemImageName)' for tab '\(tabItem.title)'")
+            }
         }
 
+        imageView.image = baseImage?.withRenderingMode(.alwaysTemplate)
         imageView.contentMode = .center
         imageView.translatesAutoresizingMaskIntoConstraints = false
-        imageView.tintAdjustmentMode = .normal
 
-        // Configure title label
         titleLabel.text = tabItem.title
-        titleLabel.font = .systemFont(ofSize: 10, weight: .medium)
+        titleLabel.font = .systemFont(ofSize: Constants.tabTitleFontSize, weight: .medium)
         titleLabel.textAlignment = .center
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        // Stack them vertically
         let stackView = UIStackView(arrangedSubviews: [imageView, titleLabel])
         stackView.axis = .vertical
         stackView.alignment = .center
@@ -64,9 +66,8 @@ final class TabItemLabelView<Tab: Hashable>: UIView {
         addSubview(stackView)
 
         NSLayoutConstraint.activate([
-            imageView.widthAnchor.constraint(equalToConstant: 28),
-            imageView.heightAnchor.constraint(equalToConstant: 28),
-
+            imageView.widthAnchor.constraint(equalToConstant: Constants.iconViewSize),
+            imageView.heightAnchor.constraint(equalToConstant: Constants.iconViewSize),
             stackView.centerXAnchor.constraint(equalTo: centerXAnchor),
             stackView.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
@@ -74,14 +75,19 @@ final class TabItemLabelView<Tab: Hashable>: UIView {
         updateColors()
     }
 
+    override func tintColorDidChange() {
+        super.tintColorDidChange()
+        updateColors()
+    }
+
     func updateColors(animated: Bool = false) {
-        let color = isHighlighted ? activeTintColor : inactiveTintColor
+        // Use self.tintColor (inherited UIView property) for active state
+        // to leverage UIKit's tint color system directly
+        let color = isHighlighted ? tintColor : inactiveTintColor
 
         if animated {
-            UIView.transition(with: imageView, duration: 0.15, options: .transitionCrossDissolve) {
+            UIView.transition(with: imageView, duration: Constants.colorTransitionDuration, options: .transitionCrossDissolve) {
                 self.imageView.tintColor = color
-            }
-            UIView.transition(with: titleLabel, duration: 0.15, options: .transitionCrossDissolve) {
                 self.titleLabel.textColor = color
             }
         } else {

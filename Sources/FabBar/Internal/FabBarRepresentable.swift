@@ -9,7 +9,6 @@ struct FabBarRepresentable<Tab: Hashable>: UIViewRepresentable {
     var size: CGSize
     var items: [FabBarItem<Tab>]
     var barTint: Color = .primary.opacity(0.08)
-    var activeTint: Color = .accentColor
     var inactiveTint: Color = .primary
     var action: FabAction
 
@@ -52,12 +51,10 @@ struct FabBarRepresentable<Tab: Hashable>: UIViewRepresentable {
             segmentedControl: control,
             tabItems: items,
             selectedIndex: selectedIndex,
-            action: action,
-            tintColor: UIColor(action.tint)
+            action: action
         )
 
         // Set label colors
-        container.labelsOverlay.activeTintColor = UIColor(activeTint)
         container.labelsOverlay.inactiveTintColor = UIColor(inactiveTint)
 
         return container
@@ -77,7 +74,6 @@ struct FabBarRepresentable<Tab: Hashable>: UIViewRepresentable {
 
         // Reapply colors - UIKit can reset these after sheet presentations
         control.selectedSegmentTintColor = UIColor(barTint)
-        uiView.labelsOverlay.activeTintColor = UIColor(activeTint)
         uiView.labelsOverlay.inactiveTintColor = UIColor(inactiveTint)
     }
 

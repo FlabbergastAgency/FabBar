@@ -35,30 +35,49 @@ final class HiddenLabelSegmentedControl: UISegmentedControl {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        hideLabelsRecursively(self)
-        // Hide segment background/separator images while preserving the selected indicator (last subview)
-        for subview in subviews {
-            if subview is UIImageView && subview != subviews.last {
-                subview.alpha = 0
-            }
-        }
+        hideSegmentLabels()
+        hideSegmentBackgrounds()
     }
 
     override func didAddSubview(_ subview: UIView) {
         super.didAddSubview(subview)
-        hideLabelsRecursively(subview)
+        hideLabels(in: subview)
     }
 
-    private func hideLabelsRecursively(_ view: UIView) {
-        if view is UILabel {
-            view.isHidden = true
+    // MARK: - Label Hiding
+
+    /// Hides all labels within the segmented control.
+    /// UISegmentedControl creates internal labels for each segment title.
+    /// We hide these so our custom overlay labels are the only visible ones.
+    private func hideSegmentLabels() {
+        hideLabels(in: self)
+    }
+
+    private func hideLabels(in view: UIView) {
+        if let label = view as? UILabel {
+            label.isHidden = true
         }
-        for sub in view.subviews {
-            hideLabelsRecursively(sub)
+        for subview in view.subviews {
+            hideLabels(in: subview)
+        }
+    }
+
+    // MARK: - Background Image Hiding
+
+    /// Hides all segment background and separator images.
+    ///
+    /// UISegmentedControl uses UIImageView subviews for backgrounds, separators,
+    /// and selection indicators. We hide all of them because:
+    /// - The glass effect comes from UIGlassEffect on the parent view, not from these images
+    /// - Our custom overlay handles the visual presentation
+    private func hideSegmentBackgrounds() {
+        for subview in subviews where subview is UIImageView {
+            subview.alpha = 0
         }
     }
 
     private func segmentIndex(at point: CGPoint) -> Int {
+        guard numberOfSegments > 0 else { return 0 }
         let segmentWidth = bounds.width / CGFloat(numberOfSegments)
         return min(max(Int(point.x / segmentWidth), 0), numberOfSegments - 1)
     }
