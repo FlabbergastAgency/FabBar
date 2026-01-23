@@ -75,12 +75,12 @@ struct ContentView: View {
         }
         .fabBar(
             selection: $selectedTab,
-            items: [
-                FabBarItem(tab: .home, title: "Home", systemImage: "house.fill"),
-                FabBarItem(tab: .explore, title: "Explore", systemImage: "compass"),
-                FabBarItem(tab: .profile, title: "Profile", systemImage: "person.fill"),
+            tabs: [
+                FabBarTab(value: .home, title: "Home", systemImage: "house.fill"),
+                FabBarTab(value: .explore, title: "Explore", systemImage: "compass"),
+                FabBarTab(value: .profile, title: "Profile", systemImage: "person.fill"),
             ],
-            action: FabAction(
+            action: FabBarAction(
                 systemImage: "plus",
                 accessibilityLabel: "Add Item"
             ) {
@@ -100,8 +100,8 @@ For more control over positioning, you can use the `FabBar` view directly.
 Use custom images from your asset catalog instead of SF Symbols:
 
 ```swift
-FabBarItem(
-    tab: .library,
+FabBarTab(
+    value: .library,
     title: "Library",
     image: "custom.library.icon",
     imageBundle: .main
@@ -113,8 +113,8 @@ FabBarItem(
 Handle when users tap an already-selected tab (useful for scroll-to-top):
 
 ```swift
-FabBarItem(
-    tab: .home,
+FabBarTab(
+    value: .home,
     title: "Home",
     systemImage: "house.fill",
     onReselect: {
@@ -131,7 +131,7 @@ Hide the FabBar based on app state (e.g., during selection mode):
 ```swift
 .fabBar(
     selection: $selectedTab,
-    items: items,
+    tabs: tabs,
     action: action,
     isVisible: !isSelecting
 )
@@ -144,7 +144,7 @@ For more control, use the `FabBar` view directly instead of the modifier. Apply 
 ```swift
 .safeAreaBar(edge: .bottom) {
     if horizontalSizeClass == .compact {
-        FabBar(selection: $selectedTab, items: items, action: action)
+        FabBar(selection: $selectedTab, tabs: tabs, action: action)
             .padding(.horizontal, 21)
             .padding(.bottom, 21)
     }
