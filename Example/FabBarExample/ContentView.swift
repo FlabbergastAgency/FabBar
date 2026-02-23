@@ -85,7 +85,6 @@ struct ContentView: View {
                 showingSheet = true
             }
         )
-        .id(tabCount)
         .sheet(isPresented: $showingSheet) {
             Text("Sheet content")
                 .presentationDetents([.medium])
@@ -96,8 +95,7 @@ struct ContentView: View {
         }
         .onChange(of: tabCount) {
             // Reset to home if the selected tab is no longer visible
-            let visibleValues: [AppTab] = [.home, .explore, .profile, .activity].prefix(tabCount).map { $0 }
-            if !visibleValues.contains(selectedTab) {
+            if !visibleTabs.contains(where: { $0.value == selectedTab }) {
                 selectedTab = .home
             }
         }

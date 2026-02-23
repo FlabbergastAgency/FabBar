@@ -13,7 +13,8 @@ final class GlassTabBarView: UIView {
     private let spacing: CGFloat = Constants.fabSpacing
     private let contentPadding: CGFloat = Constants.contentPadding
 
-    private let tabCount: Int
+    private(set) var tabCount: Int
+    private var segmentedTrailingConstraint: NSLayoutConstraint?
 
     init(
         segmentedControl: TabBarSegmentedControl,
@@ -90,10 +91,6 @@ final class GlassTabBarView: UIView {
             segmentedGlassView.leadingAnchor.constraint(equalTo: containerEffectView.contentView.leadingAnchor),
             segmentedGlassView.topAnchor.constraint(equalTo: containerEffectView.contentView.topAnchor),
             segmentedGlassView.bottomAnchor.constraint(equalTo: containerEffectView.contentView.bottomAnchor),
-            // For 3+ tabs, fill to the FAB. For fewer tabs, float leading-aligned.
-            tabCount >= 3
-                ? segmentedGlassView.trailingAnchor.constraint(equalTo: fabGlassView.leadingAnchor, constant: -spacing)
-                : segmentedGlassView.trailingAnchor.constraint(lessThanOrEqualTo: fabGlassView.leadingAnchor, constant: -spacing),
 
             segmentedControl.leadingAnchor.constraint(equalTo: segmentedGlassView.contentView.leadingAnchor, constant: contentPadding),
             segmentedControl.trailingAnchor.constraint(equalTo: segmentedGlassView.contentView.trailingAnchor, constant: -contentPadding),
@@ -113,6 +110,29 @@ final class GlassTabBarView: UIView {
             fabButton.topAnchor.constraint(equalTo: fabGlassView.contentView.topAnchor),
             fabButton.bottomAnchor.constraint(equalTo: fabGlassView.contentView.bottomAnchor),
         ])
+
+        // Set up the trailing constraint based on tab count
+        segmentedTrailingConstraint = makeSegmentedTrailingConstraint()
+        segmentedTrailingConstraint?.isActive = true
+    }
+
+    /// Creates the appropriate trailing constraint for the segmented glass view.
+    /// For 3+ tabs, fills to the FAB. For fewer tabs, floats leading-aligned.
+    private func makeSegmentedTrailingConstraint() -> NSLayoutConstraint {
+        if tabCount >= 3 {
+            segmentedGlassView.trailingAnchor.constraint(equalTo: fabGlassView.leadingAnchor, constant: -spacing)
+        } else {
+            segmentedGlassView.trailingAnchor.constraint(lessThanOrEqualTo: fabGlassView.leadingAnchor, constant: -spacing)
+        }
+    }
+
+    /// Updates the tab count and swaps the trailing constraint to match.
+    func updateTabCount(_ newCount: Int) {
+        guard newCount != tabCount else { return }
+        tabCount = newCount
+        segmentedTrailingConstraint?.isActive = false
+        segmentedTrailingConstraint = makeSegmentedTrailingConstraint()
+        segmentedTrailingConstraint?.isActive = true
     }
 
     @available(*, unavailable)

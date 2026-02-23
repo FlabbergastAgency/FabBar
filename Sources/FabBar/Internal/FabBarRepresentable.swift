@@ -25,36 +25,8 @@ struct FabBarRepresentable<Value: Hashable>: UIViewRepresentable {
         let selectedIndex = tabs.firstIndex { $0.value == activeTab } ?? 0
         control.selectedSegmentIndex = selectedIndex
 
-        control.setTitleTextAttributes([.foregroundColor: UIColor.tintColor], for: .selected)
+        configureSegmentContent(on: control)
 
-        // Set accessibility titles on each segment
-        for (index, tab) in tabs.enumerated() {
-            control.setTitle(tab.title, forSegmentAt: index)
-        }
-
-        // Create content views for injection into segment views.
-        // These use draw(_:) rendering with NSCoding support, so when the accessibility
-        // popover archives/unarchives them they hide (via init(coder:)), letting the
-        // native segment labels render crisply at popover scale.
-        let contentViews: [TabItemContentView] = tabs.map { tab in
-            if let imageName = tab.image {
-                TabItemContentView(title: tab.title, imageName: imageName, imageBundle: tab.imageBundle)
-            } else {
-                TabItemContentView(title: tab.title, symbolName: tab.systemImage ?? "")
-            }
-        }
-        control.configureContentViews(contentViews)
-
-        // For fewer than 3 tabs, set a fixed segment width so the glass view
-        // floats leading-aligned (lessThanOrEqualTo constraint). For 3+ tabs,
-        // let segments auto-distribute equally to fill the available space.
-        if tabs.count < 3 {
-            for index in 0..<tabs.count {
-                control.setWidth(Constants.fewTabsSegmentWidth, forSegmentAt: index)
-            }
-        }
-
-        control.inactiveTintColor = .label
         control.setSelectedIndex(selectedIndex, animated: false)
         control.selectedSegmentTintColor = segmentTintColor(for: control.traitCollection)
 
@@ -83,6 +55,28 @@ struct FabBarRepresentable<Value: Hashable>: UIViewRepresentable {
 
         let control = uiView.segmentedControl
         control.selectedSegmentTintColor = segmentTintColor(for: uiView.traitCollection)
+
+        // Sync segments when tabs change (count, order, or identity)
+        let currentTabValues = tabs.map(\.value)
+        if currentTabValues != context.coordinator.previousTabValues {
+            context.coordinator.previousTabValues = currentTabValues
+
+            // Rebuild all segments — configureSegmentContent replaces all
+            // injected content views anyway, so incremental patching adds
+            // complexity without benefit.
+            control.removeAllSegments()
+            for _ in tabs {
+                control.insertSegment(
+                    with: UIImage(systemName: "circle"),
+                    at: control.numberOfSegments,
+                    animated: false
+                )
+            }
+
+            configureSegmentContent(on: control)
+            uiView.updateTabCount(tabs.count)
+        }
+
         let newIndex = tabs.firstIndex { $0.value == activeTab } ?? 0
         if control.selectedSegmentIndex != newIndex {
             control.selectedSegmentIndex = newIndex
@@ -102,6 +96,30 @@ struct FabBarRepresentable<Value: Hashable>: UIViewRepresentable {
         }
     }
 
+    /// Sets accessibility titles, injects content views, and configures segment widths.
+    private func configureSegmentContent(on control: TabBarSegmentedControl) {
+        for (index, tab) in tabs.enumerated() {
+            control.setTitle(tab.title, forSegmentAt: index)
+        }
+
+        // Content views use draw(_:) rendering with NSCoding support, so when the
+        // accessibility popover archives/unarchives them they hide (via init(coder:)),
+        // letting the native segment labels render crisply at popover scale.
+        let contentViews: [TabItemContentView] = tabs.map { tab in
+            if let imageName = tab.image {
+                TabItemContentView(title: tab.title, imageName: imageName, imageBundle: tab.imageBundle)
+            } else {
+                TabItemContentView(title: tab.title, symbolName: tab.systemImage ?? "")
+            }
+        }
+        control.configureContentViews(contentViews)
+
+        // Fixed width for <3 tabs (glass floats leading-aligned); 0 for 3+ (auto-distribute)
+        for index in 0..<tabs.count {
+            control.setWidth(tabs.count < 3 ? Constants.fewTabsSegmentWidth : 0, forSegmentAt: index)
+        }
+    }
+
     private func segmentTintColor(for traitCollection: UITraitCollection) -> UIColor {
         switch traitCollection.userInterfaceStyle {
         case .dark:
@@ -114,9 +132,11 @@ struct FabBarRepresentable<Value: Hashable>: UIViewRepresentable {
     @MainActor
     class Coordinator: NSObject {
         var parent: FabBarRepresentable<Value>
+        var previousTabValues: [Value]
 
         init(parent: FabBarRepresentable<Value>) {
             self.parent = parent
+            self.previousTabValues = parent.tabs.map(\.value)
         }
 
         @objc func tabSelected(_ control: UISegmentedControl) {

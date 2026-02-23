@@ -96,6 +96,12 @@ final class TabBarSegmentedControl: UISegmentedControl {
 
     /// Configures the tab content views to be injected into each segment's view subtree.
     func configureContentViews(_ views: [TabItemContentView]) {
+        // Remove previously injected views from segment subtrees.
+        // Uses tag-based lookup so this works even if segments were rebuilt
+        // (the old tagged views will have been removed with their parent segments).
+        for segmentView in findSegmentViews() {
+            segmentView.viewWithTag(Self.injectedViewTag)?.removeFromSuperview()
+        }
         contentViews = views
         setNeedsLayout()
     }
