@@ -14,7 +14,7 @@ final class TabItemContentView: UIView {
     private var customImageBundleIdentifier: String = ""
     private var title: String = ""
 
-    private let font = UIFont.systemFont(ofSize: Constants.tabTitleFontSize, weight: .medium)
+    private let font = UIFont.systemFont(ofSize: Constants.tabTitleFontSize, weight: .semibold)
     private let imageAreaHeight = Constants.iconViewSize
 
     init(title: String, symbolName: String) {
@@ -84,11 +84,14 @@ final class TabItemContentView: UIView {
         ]
         let textSize = (title as NSString).size(withAttributes: textAttributes)
 
+        let contentNudgeUp: CGFloat = 1
+        let iconTextGap: CGFloat = 1
+
         // Draw icon centered in top area
         if let icon {
             let imageSize = icon.size
             let imageX = (bounds.width - imageSize.width) / 2
-            let imageY = (imageAreaHeight - imageSize.height) / 2
+            let imageY = (imageAreaHeight - imageSize.height) / 2 - contentNudgeUp
             let imageRect = CGRect(x: imageX, y: imageY, width: imageSize.width, height: imageSize.height)
 
             tintColor.setFill()
@@ -97,7 +100,7 @@ final class TabItemContentView: UIView {
 
         // Draw text centered below icon area
         let textX = (bounds.width - textSize.width) / 2
-        let textPoint = CGPoint(x: textX, y: imageAreaHeight)
+        let textPoint = CGPoint(x: textX, y: imageAreaHeight - contentNudgeUp + iconTextGap)
         (title as NSString).draw(at: textPoint, withAttributes: textAttributes)
     }
 

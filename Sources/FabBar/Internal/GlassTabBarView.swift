@@ -82,6 +82,10 @@ final class GlassTabBarView: UIView {
         // Store action for button
         fabButton.addAction(UIAction { _ in action.action() }, for: .touchUpInside)
 
+        // Extra bottom inset compensates for UISegmentedControl's internal padding,
+        // visually centering the content within the glass container.
+        let segmentedControlBottomInsetAdjustment: CGFloat = 1
+
         NSLayoutConstraint.activate([
             containerEffectView.leadingAnchor.constraint(equalTo: leadingAnchor),
             containerEffectView.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -95,8 +99,7 @@ final class GlassTabBarView: UIView {
             segmentedControl.leadingAnchor.constraint(equalTo: segmentedGlassView.contentView.leadingAnchor, constant: contentPadding),
             segmentedControl.trailingAnchor.constraint(equalTo: segmentedGlassView.contentView.trailingAnchor, constant: -contentPadding),
             segmentedControl.topAnchor.constraint(equalTo: segmentedGlassView.contentView.topAnchor, constant: contentPadding),
-            // Subtract 1 point from bottom inset to account for an internal padding which makes the control look closer to the native iOS tab bar
-            segmentedControl.bottomAnchor.constraint(equalTo: segmentedGlassView.contentView.bottomAnchor, constant: -contentPadding - 1),
+            segmentedControl.bottomAnchor.constraint(equalTo: segmentedGlassView.contentView.bottomAnchor, constant: -contentPadding - segmentedControlBottomInsetAdjustment),
 
             // FAB glass view
             fabGlassView.trailingAnchor.constraint(equalTo: containerEffectView.contentView.trailingAnchor),

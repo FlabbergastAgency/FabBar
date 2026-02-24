@@ -14,10 +14,14 @@ struct ContentView: View {
     @State private var showingSheet = false
     @State private var showingSettings = false
     @State private var tabCount = 3
+    @State private var useNativeTabBar = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private var tabBarVisibility: Visibility {
-        horizontalSizeClass == .compact ? .hidden : .visible
+        if useNativeTabBar {
+            return .visible
+        }
+        return horizontalSizeClass == .compact ? .hidden : .visible
     }
 
     private var visibleTabs: [FabBarTab<AppTab>] {
@@ -83,14 +87,15 @@ struct ContentView: View {
                 accessibilityLabel: "Add"
             ) {
                 showingSheet = true
-            }
+            },
+            isVisible: !useNativeTabBar
         )
         .sheet(isPresented: $showingSheet) {
             Text("Sheet content")
                 .presentationDetents([.medium])
         }
         .sheet(isPresented: $showingSettings) {
-            SettingsView(tabCount: $tabCount)
+            SettingsView(tabCount: $tabCount, useNativeTabBar: $useNativeTabBar)
                 .presentationDetents([.medium])
         }
         .onChange(of: tabCount) {
@@ -105,17 +110,24 @@ struct ContentView: View {
 @available(iOS 26.0, *)
 struct SettingsView: View {
     @Binding var tabCount: Int
+    @Binding var useNativeTabBar: Bool
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Number of Tabs") {
-                    Picker("Number of Tabs", selection: $tabCount) {
-                        Text("2").tag(2)
-                        Text("3").tag(3)
-                        Text("4").tag(4)
+                Section("Tab Bar") {
+                    Toggle("Use Native Tab Bar", isOn: $useNativeTabBar)
+                }
+
+                if !useNativeTabBar {
+                    Section("Number of Tabs") {
+                        Picker("Number of Tabs", selection: $tabCount) {
+                            Text("2").tag(2)
+                            Text("3").tag(3)
+                            Text("4").tag(4)
+                        }
+                        .pickerStyle(.segmented)
                     }
-                    .pickerStyle(.segmented)
                 }
             }
             .navigationTitle("Settings")
