@@ -80,7 +80,7 @@ public extension View {
     ///   - selection: A binding to the currently selected tab.
     ///   - tabs: The tabs to display.
     ///   - action: The floating action button configuration.
-    ///   - colors: Optional appearance override applied when this view appears.
+    ///   - appearance: Styling (FAB + content tint for light/dark).
     ///   - isVisible: Whether the FabBar is visible. Defaults to `true`.
     func fabBar<Value: Hashable>(
         selection: Binding<Value>,

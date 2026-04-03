@@ -28,14 +28,12 @@ import SwiftUI
 ///     action: FabBarAction(systemImage: "plus", accessibilityLabel: "Add Item") {
 ///         // Handle tap
 ///     }
-///     colors: .init(
+///     appearance: .init(colors: .init(
 ///         fabBackgroundTint: .systemBlue,
 ///         fabIconTint: .white,
-///         tabItemTintLight: .label,
-///         tabItemTintDark: .white,
-///         segmentIndicatorTintLight: UIColor.label.withAlphaComponent(0.08),
-///         segmentIndicatorTintDark: UIColor.label.withAlphaComponent(0.15)
-///     )
+///         tabItemTint: .label,
+///         segmentIndicatorTint: UIColor.label.withAlphaComponent(0.12)
+///     ))
 /// )
 /// ```
 ///

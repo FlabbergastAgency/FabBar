@@ -27,7 +27,7 @@ struct FabBarRepresentable<Value: Hashable>: UIViewRepresentable {
         control.selectedSegmentIndex = selectedIndex
 
         configureSegmentContent(on: control)
-        applyAppearance(to: control, traitCollection: control.traitCollection)
+        applyAppearance(to: control)
 
         control.addTarget(context.coordinator, action: #selector(context.coordinator.tabSelected(_:)), for: .valueChanged)
 
@@ -55,7 +55,7 @@ struct FabBarRepresentable<Value: Hashable>: UIViewRepresentable {
         context.coordinator.parent = self
 
         let control = uiView.segmentedControl
-        applyAppearance(to: control, traitCollection: uiView.traitCollection)
+        applyAppearance(to: control)
         uiView.updateAction(action)
         uiView.updateAppearance(appearance)
 
@@ -115,34 +115,11 @@ struct FabBarRepresentable<Value: Hashable>: UIViewRepresentable {
         }
     }
 
-    private func segmentTintColor(for traitCollection: UITraitCollection) -> UIColor {
+    private func applyAppearance(to control: TabBarSegmentedControl) {
         let colors = appearance.colors
-        switch traitCollection.userInterfaceStyle {
-        case .dark:
-            return colors.segmentIndicatorTintDark
-        default:
-            return colors.segmentIndicatorTintLight
-        }
-    }
-
-    /// Desired tab item color:
-    /// - Dark mode: fg-primary 900 (maps to white in this design system)
-    /// - Light mode: textPrimary 900 (maps to near-black in this design system)
-    private func tabItemTintColor(for traitCollection: UITraitCollection) -> UIColor {
-        let colors = appearance.colors
-        switch traitCollection.userInterfaceStyle {
-        case .dark:
-            return colors.tabItemTintDark
-        default:
-            return colors.tabItemTintLight
-        }
-    }
-
-    private func applyAppearance(to control: TabBarSegmentedControl, traitCollection: UITraitCollection) {
-        control.selectedSegmentTintColor = segmentTintColor(for: traitCollection)
-        let itemTint = tabItemTintColor(for: traitCollection)
-        control.activeTintColor = itemTint
-        control.inactiveTintColor = itemTint
+        control.selectedSegmentTintColor = colors.segmentIndicatorTint
+        control.activeTintColor = colors.tabItemTint
+        control.inactiveTintColor = colors.tabItemTint
     }
 
     @MainActor
