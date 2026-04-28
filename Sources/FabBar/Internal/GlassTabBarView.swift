@@ -10,7 +10,7 @@ final class GlassTabBarView: UIView {
     let fabGlassView: UIVisualEffectView
     private var appearance: FabBarAppearance
     private var fabButton: UIButton?
-    private var action: FabBarAction?
+    private var actions: [FabBarAction]
     private var fabConstraints: [NSLayoutConstraint] = []
     private var fabGlassViewConstraints: [NSLayoutConstraint] = []
     private var segmentedLeadingConstraint: NSLayoutConstraint?
@@ -24,15 +24,35 @@ final class GlassTabBarView: UIView {
     private(set) var tabCount: Int
     private var segmentedTrailingConstraint: NSLayoutConstraint?
 
+    private var capsuleOverflowSession: FabGlassCapsuleOverflowPanel.Session?
+
+    private enum LegacyPlusButtonMotion {
+        static let hiddenTransform = CGAffineTransform(scaleX: 0.85, y: 0.85)
+        static let duration: TimeInterval = 0.24
+        static let springDamping: CGFloat = 0.9
+        static let springVelocity: CGFloat = 0.15
+        static let options: UIView.AnimationOptions = [.curveEaseOut, .beginFromCurrentState, .allowUserInteraction]
+    }
+
+    private enum OverflowMotion {
+        static let rowDuration: TimeInterval = 0.46
+        static let rowDamping: CGFloat = 0.84
+        static let rowVelocity: CGFloat = 0.28
+        static let stagger: TimeInterval = 0.048
+        static let fabRotationDuration: TimeInterval = 0.36
+        static let fabRotationDamping: CGFloat = 0.88
+        static let fabRotationVelocity: CGFloat = 0.22
+    }
+
     init(
         segmentedControl: TabBarSegmentedControl,
         tabCount: Int,
-        action: FabBarAction?,
+        actions: [FabBarAction],
         appearance: FabBarAppearance
     ) {
         self.segmentedControl = segmentedControl
         self.tabCount = tabCount
-        self.action = action
+        self.actions = actions
         self.appearance = appearance
 
         // Create glass container effect for morphing
@@ -60,13 +80,13 @@ final class GlassTabBarView: UIView {
         setupViews()
 
         // Ensure deterministic initial appearance (no “missing plus” on first render).
-        // `updateAction` may be called before the view is in a window, so we avoid starting at alpha 0.
+        // `updateActions` may be called before the view is in a window, so we avoid starting at alpha 0.
         fabGlassView.alpha = 1
-        fabGlassView.isHidden = action == nil
-        fabGlassView.isUserInteractionEnabled = action != nil
+        fabGlassView.isHidden = actions.isEmpty
+        fabGlassView.isUserInteractionEnabled = !actions.isEmpty
         applyFabTintEffect()
 
-        updateAction(action)
+        updateActions(actions)
     }
 
     private func applyFabTintEffect() {
@@ -84,7 +104,7 @@ final class GlassTabBarView: UIView {
     func updateAppearance(_ appearance: FabBarAppearance) {
         self.appearance = appearance
         applyFabTintEffect()
-        fabButton?.tintColor = appearance.colors.fabIconTint
+        applyFabButtonConfiguration(actions)
     }
 
     private func setupViews() {
@@ -157,40 +177,22 @@ final class GlassTabBarView: UIView {
         segmentedTrailingConstraint?.isActive = true
     }
 
-    func updateAction(_ newAction: FabBarAction?) {
+    func updateActions(_ newActions: [FabBarAction]) {
         actionTransitionID &+= 1
         let transitionID = actionTransitionID
 
-        let wasShowing = action != nil
-        let willShow = newAction != nil
+        let wasShowing = !actions.isEmpty
+        let willShow = !newActions.isEmpty
 
-        // If we were showing and will still show, just update the button visuals/label.
-        if wasShowing, willShow, let newAction {
-            action = newAction
-
-            // Important: this path also runs on first render (init already set `action`),
-            // so we must create the button if it doesn't exist yet.
-            if fabButton == nil {
-                let button = UIButton(type: .system)
-                fabButton = button
-                fabGlassView.contentView.addSubview(button)
-                button.translatesAutoresizingMaskIntoConstraints = false
-                fabConstraints = [
-                    button.leadingAnchor.constraint(equalTo: fabGlassView.contentView.leadingAnchor),
-                    button.trailingAnchor.constraint(equalTo: fabGlassView.contentView.trailingAnchor),
-                    button.topAnchor.constraint(equalTo: fabGlassView.contentView.topAnchor),
-                    button.bottomAnchor.constraint(equalTo: fabGlassView.contentView.bottomAnchor),
-                ]
-                NSLayoutConstraint.activate(fabConstraints)
+        // Stay visible: refresh taps/menu wiring without running FAB hide-show choreography.
+        if wasShowing, willShow {
+            actions = newActions
+            if newActions.count <= 1 {
+                dismissCapsuleOverflowIfNeeded(animated: false)
             }
+            ensureFabButtonInstalledIfNeeded()
+            applyFabButtonConfiguration(actions)
 
-            fabButton?.accessibilityLabel = newAction.accessibilityLabel
-            let config = UIImage.SymbolConfiguration(pointSize: Constants.fabIconPointSize, weight: .medium)
-            fabButton?.setImage(UIImage(systemName: newAction.systemImage, withConfiguration: config), for: .normal)
-            fabButton?.tintColor = appearance.colors.fabIconTint
-            // Replace action handler (simple + safe: rebuild the button actions)
-            fabButton?.removeTarget(nil, action: nil, for: .allEvents)
-            fabButton?.addAction(UIAction { _ in newAction.action() }, for: .touchUpInside)
             fabGlassView.isHidden = false
             fabGlassView.isUserInteractionEnabled = true
             fabGlassView.alpha = 1
@@ -200,62 +202,44 @@ final class GlassTabBarView: UIView {
             return
         }
 
-        // From here on we're transitioning between showing <-> hidden.
-        action = newAction
-
-        // Cancel in-flight animations to prevent stale completions (missing icon, etc.)
-        fabGlassView.layer.removeAllAnimations()
-        segmentedGlassView.layer.removeAllAnimations()
-
-        // Keep the button view stable across show/hide to avoid flicker/missing icon.
-        if willShow, let newAction {
-            applyFabTintEffect()
-            if fabButton == nil {
-                let button = UIButton(type: .system)
-                fabButton = button
-                fabGlassView.contentView.addSubview(button)
-                button.translatesAutoresizingMaskIntoConstraints = false
-                fabConstraints = [
-                    button.leadingAnchor.constraint(equalTo: fabGlassView.contentView.leadingAnchor),
-                    button.trailingAnchor.constraint(equalTo: fabGlassView.contentView.trailingAnchor),
-                    button.topAnchor.constraint(equalTo: fabGlassView.contentView.topAnchor),
-                    button.bottomAnchor.constraint(equalTo: fabGlassView.contentView.bottomAnchor),
-                ]
-                NSLayoutConstraint.activate(fabConstraints)
-            }
-
-            let config = UIImage.SymbolConfiguration(pointSize: Constants.fabIconPointSize, weight: .medium)
-            fabButton?.setImage(UIImage(systemName: newAction.systemImage, withConfiguration: config), for: .normal)
-            fabButton?.tintColor = appearance.colors.fabIconTint
-            fabButton?.accessibilityLabel = newAction.accessibilityLabel
-            fabButton?.accessibilityTraits = .button
-            fabButton?.tintAdjustmentMode = .automatic
-            fabButton?.removeTarget(nil, action: nil, for: .allEvents)
-            fabButton?.addAction(UIAction { _ in newAction.action() }, for: .touchUpInside)
+        actions = newActions
+        if newActions.count <= 1 || newActions.isEmpty {
+            dismissCapsuleOverflowIfNeeded(animated: false)
         }
 
-        // Fade the FAB glass view in/out (no movement) using Core Animation so it still runs
-        // even if SwiftUI disables UIView animations for the current transaction.
+        // Only clear layer animations when the FAB is actually crossing hidden ↔ visible.
+        // `updateUIView` often runs again while a hide fade is still running (same empty
+        // actions); `removeAllAnimations()` would cancel `fabFade` and snap the + away.
+        if wasShowing != willShow {
+            fabGlassView.layer.removeAllAnimations()
+            segmentedGlassView.layer.removeAllAnimations()
+        }
+
+        if willShow {
+            applyFabTintEffect()
+            ensureFabButtonInstalledIfNeeded()
+            applyFabButtonConfiguration(actions)
+            fabButton?.accessibilityTraits = .button
+            fabButton?.tintAdjustmentMode = .automatic
+        }
+
         let shouldAnimateFabOpacity = (wasShowing != willShow) && window != nil
         if willShow {
             fabGlassView.isHidden = false
             fabGlassView.isUserInteractionEnabled = false
-            // Re-apply after unhide so tint is correct even when toggling quickly.
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 guard transitionID == self.actionTransitionID else { return }
-                guard self.action != nil, self.fabGlassView.isHidden == false else { return }
+                guard !self.actions.isEmpty, self.fabGlassView.isHidden == false else { return }
                 self.applyFabTintEffect()
+                self.applyFabButtonConfiguration(self.actions)
             }
         } else {
             fabGlassView.isUserInteractionEnabled = false
         }
 
-        // Tabs should animate between leading <-> centered.
-        // We'll animate only if we are actually transitioning between states.
         let shouldAnimateTabs = (wasShowing != willShow) && window != nil
 
-        // Activate target constraints for segmented glass view.
         if willShow {
             segmentedLeadingConstraint?.isActive = true
             segmentedCenterXConstraint?.isActive = false
@@ -276,75 +260,17 @@ final class GlassTabBarView: UIView {
         }
 
         if shouldAnimateFabOpacity {
-            let presentation = fabGlassView.layer.presentation()
-            let duration: CFTimeInterval = 0.22
-            let timing = CAMediaTimingFunction(name: .easeInEaseOut)
-
-            let toOpacity: Float = willShow ? 1 : 0
-            let toScale: CGFloat = willShow ? 1 : 0.01
-
-            // Establish a deterministic start state for "show" so it doesn't pop in at full size
-            // before the animation kicks in (especially when coming from isHidden = true).
-            if willShow {
-                CATransaction.begin()
-                CATransaction.setDisableActions(true)
-                fabGlassView.layer.opacity = 0
-                fabGlassView.layer.transform = CATransform3DMakeScale(0.01, 0.01, 1)
-                CATransaction.commit()
-            }
-
-            let fromOpacity: Float = willShow
-                ? 0
-                : (presentation?.opacity ?? fabGlassView.layer.opacity)
-
-            let fromScale: CGFloat = willShow
-                ? 0.01
-                : ((presentation?.value(forKeyPath: "transform.scale.x") as? CGFloat) ?? 1)
-
-            let opacityAnimation = CABasicAnimation(keyPath: "opacity")
-            opacityAnimation.fromValue = fromOpacity
-            opacityAnimation.toValue = toOpacity
-
-            let scaleAnimation = CABasicAnimation(keyPath: "transform.scale")
-            scaleAnimation.fromValue = fromScale
-            scaleAnimation.toValue = toScale
-
-            let group = CAAnimationGroup()
-            group.animations = [opacityAnimation, scaleAnimation]
-            group.duration = duration
-            group.timingFunction = timing
-
             fabGlassView.layer.removeAnimation(forKey: "fabFade")
+            fabGlassView.layer.opacity = 1
+            fabGlassView.layer.transform = CATransform3DIdentity
 
-            CATransaction.begin()
-            CATransaction.setCompletionBlock { [weak self] in
-                guard let self else { return }
-                guard transitionID == self.actionTransitionID else { return }
-
-                if willShow {
-                    self.fabGlassView.isHidden = false
-                    self.fabGlassView.isUserInteractionEnabled = true
-                } else {
-                    self.fabGlassView.isUserInteractionEnabled = false
-                    self.fabGlassView.isHidden = true
-
-                    // Prep next show without any flash.
-                    CATransaction.begin()
-                    CATransaction.setDisableActions(true)
-                    self.fabGlassView.layer.opacity = 1
-                    self.fabGlassView.layer.transform = CATransform3DIdentity
-                    CATransaction.commit()
-                }
-            }
-
-            // Make the model layer authoritative immediately; the animation provides the transition.
-            fabGlassView.layer.opacity = toOpacity
-            fabGlassView.layer.transform = CATransform3DMakeScale(toScale, toScale, 1)
-            fabGlassView.layer.add(group, forKey: "fabFade")
-            CATransaction.commit()
+            runFabShowHideAnimationLikeLegacyTabBar(willShow: willShow)
+        } else if window != nil, !willShow, !fabGlassView.isHidden {
+            // Redundant empty `updateActions` while the hide spring runs — let completion settle visibility.
         } else {
             fabGlassView.layer.opacity = 1
             fabGlassView.layer.transform = CATransform3DIdentity
+            fabGlassView.transform = .identity
             if willShow {
                 fabGlassView.isHidden = false
                 fabGlassView.isUserInteractionEnabled = true
@@ -352,6 +278,266 @@ final class GlassTabBarView: UIView {
                 fabGlassView.isUserInteractionEnabled = false
                 fabGlassView.isHidden = true
             }
+        }
+    }
+
+    private func animateStep(animations: @escaping () -> Void, completion: ((Bool) -> Void)? = nil) {
+        UIView.animate(
+            withDuration: LegacyPlusButtonMotion.duration,
+            delay: 0,
+            usingSpringWithDamping: LegacyPlusButtonMotion.springDamping,
+            initialSpringVelocity: LegacyPlusButtonMotion.springVelocity,
+            options: LegacyPlusButtonMotion.options,
+            animations: animations,
+            completion: completion
+        )
+    }
+
+    private func runFabShowHideAnimationLikeLegacyTabBar(willShow: Bool) {
+        let hiddenTransform = LegacyPlusButtonMotion.hiddenTransform
+
+        if willShow {
+            fabGlassView.isHidden = false
+            fabGlassView.alpha = 0
+            fabGlassView.transform = hiddenTransform
+            animateStep(animations: {
+                self.fabGlassView.alpha = 1
+                self.fabGlassView.transform = .identity
+            }, completion: { [weak self] finished in
+                guard let self else { return }
+                guard finished else { return }
+                if self.actions.isEmpty {
+                    self.fabGlassView.isUserInteractionEnabled = false
+                    self.fabGlassView.isHidden = true
+                    self.fabGlassView.alpha = 1
+                    self.fabGlassView.transform = .identity
+                    return
+                }
+                self.fabGlassView.isHidden = false
+                self.fabGlassView.isUserInteractionEnabled = true
+                self.fabGlassView.alpha = 1
+                self.fabGlassView.transform = .identity
+            })
+        } else {
+            guard !fabGlassView.isHidden else {
+                return
+            }
+
+            animateStep(animations: {
+                self.fabGlassView.alpha = 0
+                self.fabGlassView.transform = hiddenTransform
+            }, completion: { [weak self] finished in
+                guard let self else { return }
+                guard finished else { return }
+                self.fabGlassView.isUserInteractionEnabled = false
+                animateStep(animations: {
+                    self.fabGlassView.isHidden = true
+                    self.fabGlassView.transform = .identity
+                    self.fabGlassView.alpha = 1
+                }, completion: { [weak self] finished in
+                    guard let self else { return }
+                    guard finished else { return }
+                    guard self.actions.isEmpty else {
+                        self.fabGlassView.isHidden = false
+                        self.fabGlassView.isUserInteractionEnabled = true
+                        self.fabGlassView.alpha = 1
+                        self.fabGlassView.transform = .identity
+                        return
+                    }
+                    self.fabGlassView.transform = .identity
+                    self.fabGlassView.alpha = 1
+                })
+            })
+        }
+    }
+
+    private func ensureFabButtonInstalledIfNeeded() {
+        guard fabButton == nil else { return }
+        let button = UIButton(type: .system)
+        fabButton = button
+        fabGlassView.contentView.addSubview(button)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        fabConstraints = [
+            button.leadingAnchor.constraint(equalTo: fabGlassView.contentView.leadingAnchor),
+            button.trailingAnchor.constraint(equalTo: fabGlassView.contentView.trailingAnchor),
+            button.topAnchor.constraint(equalTo: fabGlassView.contentView.topAnchor),
+            button.bottomAnchor.constraint(equalTo: fabGlassView.contentView.bottomAnchor),
+        ]
+        NSLayoutConstraint.activate(fabConstraints)
+    }
+
+    private func applyFabButtonConfiguration(_ actions: [FabBarAction]) {
+        guard let fabButton, !actions.isEmpty else { return }
+
+        let symbolConfig = UIImage.SymbolConfiguration(pointSize: Constants.fabIconPointSize, weight: .medium)
+        fabButton.removeTarget(nil, action: nil, for: .allEvents)
+
+        if actions.count == 1 {
+            fabButton.menu = nil
+            fabButton.showsMenuAsPrimaryAction = false
+            fabButton.adjustsImageWhenHighlighted = true
+            fabButton.tintColor = appearance.colors.fabIconTint
+            let single = actions[0]
+            fabButton.setImage(UIImage(systemName: single.systemImage, withConfiguration: symbolConfig), for: .normal)
+            fabButton.accessibilityLabel = single.accessibilityLabel
+            fabButton.addAction(UIAction { _ in single.action() }, for: .touchUpInside)
+            animateFabOverflowExpanded(false, animated: false)
+        } else {
+            fabButton.menu = nil
+            fabButton.showsMenuAsPrimaryAction = false
+            fabButton.adjustsImageWhenHighlighted = false
+            fabButton.tintColor = appearance.colors.fabBackgroundTint
+            let whitePlus = UIImage(systemName: "plus", withConfiguration: symbolConfig)?
+                .withTintColor(appearance.colors.fabIconTint, renderingMode: .alwaysOriginal)
+            fabButton.setImage(whitePlus, for: .normal)
+            fabButton.imageView?.contentMode = .center
+            fabButton.addAction(UIAction { [weak self] _ in
+                self?.toggleCapsuleOverflow()
+            }, for: .touchUpInside)
+        }
+    }
+
+    private func animateFabOverflowExpanded(_ expanded: Bool, animated: Bool) {
+        guard fabButton != nil else { return }
+
+        let angle: CGFloat = expanded ? .pi / 4 : 0
+        let apply = {
+            self.fabGlassView.transform = CGAffineTransform(rotationAngle: angle)
+        }
+
+        if animated {
+            UIView.animate(
+                withDuration: OverflowMotion.fabRotationDuration,
+                delay: 0,
+                usingSpringWithDamping: OverflowMotion.fabRotationDamping,
+                initialSpringVelocity: OverflowMotion.fabRotationVelocity,
+                options: [.allowUserInteraction, .beginFromCurrentState],
+                animations: apply
+            )
+        } else {
+            apply()
+        }
+    }
+
+    private func toggleCapsuleOverflow() {
+        if capsuleOverflowSession != nil {
+            dismissCapsuleOverflowIfNeeded(animated: true)
+        } else {
+            presentCapsuleOverflow()
+        }
+    }
+
+    private func presentCapsuleOverflow() {
+        guard actions.count > 1, let window else { return }
+
+        dismissCapsuleOverflowIfNeeded(animated: false)
+
+        let session = FabGlassCapsuleOverflowPanel.makeSession(
+            actions: actions,
+            appearance: appearance,
+            onSelect: { [weak self] action in
+                self?.dismissCapsuleOverflowIfNeeded(animated: true)
+                action.action()
+            },
+            onDismissRequest: { [weak self] in
+                self?.dismissCapsuleOverflowIfNeeded(animated: true)
+            }
+        )
+
+        session.dimmingView.alpha = 0
+        session.stackContainer.alpha = 1
+
+        window.addSubview(session.dimmingView)
+        window.addSubview(session.stackContainer)
+        FabGlassCapsuleOverflowPanel.layout(session: session, anchorView: fabGlassView, in: window)
+        FabGlassCapsuleOverflowPanel.prepareCellsEmerging(stackView: session.stackView, anchorView: fabGlassView)
+
+        capsuleOverflowSession = session
+
+        fabButton?.layoutIfNeeded()
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+
+        UIView.animate(withDuration: 0.28, delay: 0, options: [.curveEaseOut]) {
+            session.dimmingView.alpha = 1
+        }
+
+        animateFabOverflowExpanded(true, animated: true)
+
+        let cells = session.stackView.arrangedSubviews
+        let indicesFromBottomUp = Array((0..<cells.count).reversed())
+        for (step, idx) in indicesFromBottomUp.enumerated() {
+            guard let cap = cells[idx] as? FabOverflowCapsuleContainerView else { continue }
+            UIView.animate(
+                withDuration: OverflowMotion.rowDuration,
+                delay: OverflowMotion.stagger * Double(step),
+                usingSpringWithDamping: OverflowMotion.rowDamping,
+                initialSpringVelocity: OverflowMotion.rowVelocity,
+                options: [.allowUserInteraction, .beginFromCurrentState]
+            ) {
+                cap.contentWrapper.alpha = 1
+                cap.contentWrapper.transform = .identity
+            }
+        }
+
+        let settleDelay = OverflowMotion.stagger * Double(max(0, cells.count - 1)) + 0.12
+        DispatchQueue.main.asyncAfter(deadline: .now() + settleDelay) { [weak self] in
+            guard self?.capsuleOverflowSession != nil else { return }
+            if #available(iOS 17.0, *) {
+                UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.55)
+            } else {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
+        }
+    }
+
+    private func dismissCapsuleOverflowIfNeeded(animated: Bool) {
+        guard let session = capsuleOverflowSession else {
+            if !animated {
+                animateFabOverflowExpanded(false, animated: false)
+            }
+            return
+        }
+        capsuleOverflowSession = nil
+
+        if !animated {
+            animateFabOverflowExpanded(false, animated: false)
+            session.dimmingView.removeFromSuperview()
+            session.stackContainer.removeFromSuperview()
+            return
+        }
+
+        if let window = session.stackContainer.window ?? fabGlassView.window {
+            FabGlassCapsuleOverflowPanel.layout(session: session, anchorView: fabGlassView, in: window)
+            FabGlassCapsuleOverflowPanel.refreshEmergenceTransformsForDismiss(stackView: session.stackView, anchorView: fabGlassView)
+        }
+
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        animateFabOverflowExpanded(false, animated: true)
+
+        UIView.animate(withDuration: 0.26, delay: 0, options: [.curveEaseIn]) {
+            session.dimmingView.alpha = 0
+        }
+
+        let cells = session.stackView.arrangedSubviews
+        let indicesFromBottomUp = Array((0..<cells.count).reversed())
+        for (step, idx) in indicesFromBottomUp.enumerated() {
+            guard let cap = cells[idx] as? FabOverflowCapsuleContainerView else { continue }
+            UIView.animate(
+                withDuration: OverflowMotion.rowDuration,
+                delay: OverflowMotion.stagger * Double(step),
+                usingSpringWithDamping: OverflowMotion.rowDamping,
+                initialSpringVelocity: OverflowMotion.rowVelocity * 0.85,
+                options: [.beginFromCurrentState, .curveEaseIn]
+            ) {
+                cap.contentWrapper.alpha = 0
+                cap.contentWrapper.transform = cap.emergenceTransform
+            }
+        }
+
+        let lastDelay = OverflowMotion.stagger * Double(max(0, cells.count - 1)) + OverflowMotion.rowDuration
+        DispatchQueue.main.asyncAfter(deadline: .now() + lastDelay) {
+            session.dimmingView.removeFromSuperview()
+            session.stackContainer.removeFromSuperview()
         }
     }
 
@@ -387,6 +573,18 @@ final class GlassTabBarView: UIView {
 
         // Circle shape for FAB button (capsule with equal width/height = circle)
         fabGlassView.cornerConfiguration = .capsule()
+
+        if let session = capsuleOverflowSession, let window {
+            FabGlassCapsuleOverflowPanel.layout(session: session, anchorView: fabGlassView, in: window)
+            window.bringSubviewToFront(session.stackContainer)
+        }
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window == nil {
+            dismissCapsuleOverflowIfNeeded(animated: false)
+        }
     }
 
     override func tintColorDidChange() {

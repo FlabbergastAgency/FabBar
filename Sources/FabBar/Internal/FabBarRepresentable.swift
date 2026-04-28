@@ -8,7 +8,7 @@ import UIKit
 @available(iOS 26.0, *)
 struct FabBarRepresentable<Value: Hashable>: UIViewRepresentable {
     var tabs: [FabBarTab<Value>]
-    var action: FabBarAction?
+    var actions: [FabBarAction]
     var appearance: FabBarAppearance
 
     @Binding var activeTab: Value
@@ -44,7 +44,7 @@ struct FabBarRepresentable<Value: Hashable>: UIViewRepresentable {
         let container = GlassTabBarView(
             segmentedControl: control,
             tabCount: tabs.count,
-            action: action,
+            actions: actions,
             appearance: appearance
         )
 
@@ -56,7 +56,7 @@ struct FabBarRepresentable<Value: Hashable>: UIViewRepresentable {
 
         let control = uiView.segmentedControl
         applyAppearance(to: control)
-        uiView.updateAction(action)
+        uiView.updateActions(actions)
         uiView.updateAppearance(appearance)
 
         // Sync segments when tabs change (count, order, or identity)

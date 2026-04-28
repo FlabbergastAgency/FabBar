@@ -25,9 +25,9 @@ import SwiftUI
 ///         FabBarTab(value: .explore, title: "Explore", systemImage: "compass"),
 ///         FabBarTab(value: .profile, title: "Profile", systemImage: "person.fill"),
 ///     ],
-///     action: FabBarAction(systemImage: "plus", accessibilityLabel: "Add Item") {
-///         // Handle tap
-///     }
+///     actions: [
+///         FabBarAction(systemImage: "plus", accessibilityLabel: "Add Item") { /* … */ },
+///     ]
 ///     appearance: .init(colors: .init(
 ///         fabBackgroundTint: .systemBlue,
 ///         fabIconTint: .white,
@@ -47,8 +47,8 @@ public struct FabBar<Value: Hashable>: View {
     /// The tabs to display.
     public let tabs: [FabBarTab<Value>]
 
-    /// The floating action button configuration.
-    public var action: FabBarAction?
+    /// Floating action button actions. Empty hides the + control; one action is a direct tap; more than one opens a menu from the + button.
+    public var actions: [FabBarAction]
 
     /// Optional appearance override applied when this FabBar appears.
     public var appearance: FabBarAppearance
@@ -58,18 +58,28 @@ public struct FabBar<Value: Hashable>: View {
     /// - Parameters:
     ///   - selection: A binding to the currently selected tab.
     ///   - tabs: The tabs to display.
-    ///   - action: The floating action button configuration.
+    ///   - actions: FAB actions (empty hides the button; one direct tap; several open a menu).
     ///   - colors: Optional appearance override applied when the FabBar appears.
+    public init(
+        selection: Binding<Value>,
+        tabs: [FabBarTab<Value>],
+        actions: [FabBarAction] = [],
+        appearance: FabBarAppearance = .default
+    ) {
+        self._selection = selection
+        self.tabs = tabs
+        self.actions = actions
+        self.appearance = appearance
+    }
+
+    /// Creates a FabBar with a single FAB action or none (nil hides the + control).
     public init(
         selection: Binding<Value>,
         tabs: [FabBarTab<Value>],
         action: FabBarAction?,
         appearance: FabBarAppearance = .default
     ) {
-        self._selection = selection
-        self.tabs = tabs
-        self.action = action
-        self.appearance = appearance
+        self.init(selection: selection, tabs: tabs, actions: action.map { [$0] } ?? [], appearance: appearance)
     }
 
     public var body: some View {
@@ -82,7 +92,7 @@ public struct FabBar<Value: Hashable>: View {
         } else {
             FabBarRepresentable(
                 tabs: tabs,
-                action: action,
+                actions: actions,
                 appearance: appearance,
                 activeTab: $selection
             )
