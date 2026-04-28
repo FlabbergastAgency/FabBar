@@ -400,7 +400,7 @@ final class GlassTabBarView: UIView {
     private func animateFabOverflowExpanded(_ expanded: Bool, animated: Bool) {
         guard fabButton != nil else { return }
 
-        let angle: CGFloat = expanded ? .pi / 4 : 0
+        let angle: CGFloat = expanded ? .pi * 3 / 4 : 0
         let apply = {
             self.fabGlassView.transform = CGAffineTransform(rotationAngle: angle)
         }
@@ -427,6 +427,13 @@ final class GlassTabBarView: UIView {
         }
     }
 
+    private func withUnrotatedFabGlassView<T>(_ work: () -> T) -> T {
+        let transform = fabGlassView.transform
+        fabGlassView.transform = .identity
+        defer { fabGlassView.transform = transform }
+        return work()
+    }
+
     private func presentCapsuleOverflow() {
         guard actions.count > 1, let window else { return }
 
@@ -449,8 +456,10 @@ final class GlassTabBarView: UIView {
 
         window.addSubview(session.dimmingView)
         window.addSubview(session.stackContainer)
-        FabGlassCapsuleOverflowPanel.layout(session: session, anchorView: fabGlassView, in: window)
-        FabGlassCapsuleOverflowPanel.prepareCellsEmerging(stackView: session.stackView, anchorView: fabGlassView)
+        withUnrotatedFabGlassView {
+            FabGlassCapsuleOverflowPanel.layout(session: session, anchorView: fabGlassView, in: window)
+            FabGlassCapsuleOverflowPanel.prepareCellsEmerging(stackView: session.stackView, anchorView: fabGlassView)
+        }
 
         capsuleOverflowSession = session
 
@@ -507,8 +516,10 @@ final class GlassTabBarView: UIView {
         }
 
         if let window = session.stackContainer.window ?? fabGlassView.window {
-            FabGlassCapsuleOverflowPanel.layout(session: session, anchorView: fabGlassView, in: window)
-            FabGlassCapsuleOverflowPanel.refreshEmergenceTransformsForDismiss(stackView: session.stackView, anchorView: fabGlassView)
+            withUnrotatedFabGlassView {
+                FabGlassCapsuleOverflowPanel.layout(session: session, anchorView: fabGlassView, in: window)
+                FabGlassCapsuleOverflowPanel.refreshEmergenceTransformsForDismiss(stackView: session.stackView, anchorView: fabGlassView)
+            }
         }
 
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -575,7 +586,10 @@ final class GlassTabBarView: UIView {
         fabGlassView.cornerConfiguration = .capsule()
 
         if let session = capsuleOverflowSession, let window {
-            FabGlassCapsuleOverflowPanel.layout(session: session, anchorView: fabGlassView, in: window)
+            withUnrotatedFabGlassView {
+                FabGlassCapsuleOverflowPanel.layout(session: session, anchorView: fabGlassView, in: window)
+            }
+            window.bringSubviewToFront(session.dimmingView)
             window.bringSubviewToFront(session.stackContainer)
         }
     }

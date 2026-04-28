@@ -11,6 +11,7 @@ enum FabGlassCapsuleOverflowPanel {
     }
 
     static let rowSpacing: CGFloat = 8
+    private static let emergenceScale: CGFloat = 0.26
     static let capsuleHorizontalPadding: CGFloat = 14
     static let capsuleVerticalPadding: CGFloat = 10
     static let gapAboveFab: CGFloat = 10
@@ -18,9 +19,17 @@ enum FabGlassCapsuleOverflowPanel {
     private static func emergenceTransform(capsule: FabOverflowCapsuleContainerView, anchorView: UIView) -> CGAffineTransform {
         let anchorLocal = capsule.convert(CGPoint(x: anchorView.bounds.midX, y: anchorView.bounds.midY), from: anchorView)
         let centerLocal = CGPoint(x: capsule.bounds.midX, y: capsule.bounds.midY)
-        let dx = (anchorLocal.x - centerLocal.x) * 0.92
-        let dy = (anchorLocal.y - centerLocal.y) * 0.92
-        return CGAffineTransform(translationX: dx, y: dy).scaledBy(x: 0.26, y: 0.26)
+        let deltaY = (anchorLocal.y - centerLocal.y) * 0.92
+        let rightEdgeShift = capsule.bounds.width * (1 - emergenceScale) * 0.5
+
+        return CGAffineTransform(
+            a: emergenceScale,
+            b: 0,
+            c: 0,
+            d: emergenceScale,
+            tx: rightEdgeShift,
+            ty: deltaY
+        )
     }
 
     static func prepareCellsEmerging(stackView: UIStackView, anchorView: UIView) {
@@ -104,6 +113,7 @@ enum FabGlassCapsuleOverflowPanel {
         effect.tintColor = appearance.colors.fabBackgroundTint
 
         let wrap = UIVisualEffectView(effect: effect)
+        wrap.contentView.backgroundColor = appearance.colors.fabBackgroundTint
         wrap.clipsToBounds = true
 
         var cfg = UIButton.Configuration.plain()
@@ -156,13 +166,12 @@ enum FabGlassCapsuleOverflowPanel {
         in window: UIWindow
     ) {
         let fabFrame = anchorView.convert(anchorView.bounds, to: window)
-        let barTop = fabFrame.minY
 
         session.dimmingView.frame = CGRect(
             x: 0,
             y: 0,
             width: window.bounds.width,
-            height: max(0, barTop)
+            height: window.bounds.height
         )
 
         let targetWidth = min(window.bounds.width - 24, 340)
